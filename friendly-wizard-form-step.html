@@ -1,0 +1,147 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+
+<link rel="import" href="friendly-wizard-step.html">
+
+
+<dom-module id="friendly-wizard-form-step">
+  <template>
+    <style>
+      #container {
+        @apply --friendly-step-container;
+      }
+
+      #header-container {
+        @apply --friendly-step-header;
+      }
+
+      #footer-container {
+        @apply --friendly-step-footer;
+      }
+
+      #content-container {
+        @apply --friendly-step-content;
+      }
+    </style>
+
+    <div id="container">
+      <div id="header-container">
+        <slot name="header" id="header"></slot>
+      </div>
+
+      <div id="content-container">
+        <form id="form">
+          <slot name="input" id="formSlot"></slot>
+        </form>
+      </div>
+
+      <div id="footer-container">
+        <slot name="footer" id="footer"></slot>
+      </div>
+    </div>
+
+  </template>
+
+  <script>
+    class FriendlyWizardFormStep extends FriendlyWizardStep {
+      static get is() { return 'friendly-wizard-form-step'; }
+
+      _activeChanged(active){
+        super._activeChanged(active);
+        if(this.active){
+          this.addEventListener('keyup', this._onKeyUp)
+          this.addEventListener('change', this._changed)
+        }else{
+          this.removeEventListener('keyup', this._onKeyUp)
+        }
+      }
+
+      _onKeyUp(e){
+        this._validate();
+        // if(e.keyCode === 13){
+        //   this._validate(true);
+        //   if(this.valid){
+        //     this._next();
+        //   }
+        // }
+      }
+
+      _changed(){
+        this._validate();
+      }
+
+
+      /**
+      * Overrides super method
+      */
+      _getSlots(){
+        return this.shadowRoot.querySelectorAll('slot#header, slot#footer');
+      }
+
+      /**
+      * Checks validity of step
+      * Overrides super
+      * Form is considered valid if all required inputs are filled
+      */
+      validate(force) {
+        console.log('validate called')
+        if (this.$.form.getAttribute('novalidate') === '')
+          return true;
+
+        // Start by making the form check the native elements it knows about.
+        var valid = this.$.form.checkValidity();
+
+        var elements = this._getValidatableElements();
+        var required = elements.filter((el) => {
+          return el.required
+        })
+
+        // Go through all the elements, and validate the custom ones.
+        for (var el, i = 0; el = elements[i], i < elements.length; i++) {
+
+          // console.log(el, el.required, el.value, el.value === '')
+          // Dont throw errors on things which are required, but not yet filled
+          if(el.required && (el.value === undefined || el.value === '') && !force){
+            console.log('required and not filled');
+            valid = false;
+            return valid;
+          }
+
+          // This is weird to appease the compiler. We assume the custom element
+          // has a validate() method, otherwise we can't check it.
+          var validatable = /** @type {{validate: (function() : boolean)}} */ (el);
+          if (validatable.validate) {
+            valid = !!validatable.validate() && valid;
+          }
+        }
+        return valid;
+      }
+
+      _getValidatableElements() {
+
+        var nodes = this.$.formSlot.assignedNodes({flatten:false})
+        var validatable = [];
+
+        for (var i = 0; i < nodes.length; i++) {
+          // This element might contain other potentially validatable elements
+          // which we need to look at. For example, this could be a <p> node
+          // containing a bunch of inputs.
+          var elements = Array.prototype.slice.call(nodes[i].querySelectorAll('*')) || [];
+
+          // We also want to check this element.
+          elements.push(nodes[i]);
+
+          // An element is validatable if it is not disabled
+          for (var el, j = 0; el = elements[j], j < elements.length; j++) {
+            if (!el.disabled) {
+              validatable.push(el);
+            }
+          }
+        }
+        return validatable;
+      }
+
+    }
+
+    window.customElements.define(FriendlyWizardFormStep.is, FriendlyWizardFormStep);
+  </script>
+</dom-module>

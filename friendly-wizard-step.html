@@ -1,0 +1,223 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../../bower_components/iron-a11y-keys-behavior/iron-a11y-keys-behavior.html">
+<link rel="import" href="../../bower_components/polymer/lib/mixins/gesture-event-listeners.html">
+
+<dom-module id="friendly-wizard-step">
+  <template>
+    <style>
+
+
+      #container {
+        
+        @apply --friendly-step-container;
+      }
+
+      #header-container {
+        @apply --friendly-step-header;
+      }
+
+      #footer-container {
+        @apply --friendly-step-footer;
+      }
+
+      #content-container {
+        @apply --friendly-step-content;
+      }
+    </style>
+
+    <div id="container">
+      <div id="header-container">
+        <slot name="header" id="header"></slot>
+      </div>
+      <div id="content-container">
+        <slot name="content"></slot>
+      </div>
+      <div id="footer-container">
+        <slot name="footer" id="footer"></slot>
+      </div>
+    </div>
+
+  </template>
+
+  <script>
+    class FriendlyWizardStep extends Polymer.mixinBehaviors([Polymer.IronA11yKeysBehavior], Polymer.Element){
+
+      static get is() { return 'friendly-wizard-step'; }
+
+      static get properties (){
+        return {
+          next:{
+            type:String,
+            value: ''
+          },
+
+          back:{
+            type:String,
+            value: ''
+          },
+
+          interactiveNodes:{
+            type:Array,
+            value: () => {return []}
+          },
+
+          class:{
+            type: String,
+            value: '',
+            observer: '_classChanged'
+          },
+
+          active:{
+            type: Boolean,
+            value: false,
+            observer: '_activeChanged'
+          },
+
+          valid:{
+            notify:true,
+            type: Boolean,
+            value: false
+          }
+        }
+      }
+
+      /**
+      * Sets active when step has the class iron-selected
+      */
+      _classChanged(e){
+        this.active = e.indexOf('iron-selected') > -1;
+      }
+
+      /**
+      * Checks step validity & binds enter keypress
+      */
+      _activeChanged(active){
+        if(active){
+          Polymer.Async.microTask.run(() => {
+            this._validate();
+          });
+        }
+      }
+
+      /**
+      * Initial setup for the element
+      * Called when the element is attached
+      * Gets and processes all distributed nodes
+      * Sets whether the step can proceed or not
+      */
+      connectedCallback(){
+        super.connectedCallback(); 
+        requestAnimationFrame(() => {
+          this._init();
+        }); 
+      }
+
+      _init(){
+        this._processNodes(this._getDistributedNodes());
+      }
+
+      /**
+      * Get all distributed nodes
+      */
+      _getDistributedNodes(){
+        let slots = this._getSlots();
+        let distributedNodes = [];
+        slots.forEach((slot) => {
+          distributedNodes = distributedNodes.concat(slot.assignedNodes({flatten:false}))
+        });
+        return distributedNodes;
+      }
+
+      /**
+      * Gets all slots
+      * Overwrite this if your step element has a different structure
+      */
+      _getSlots(){
+        return this.shadowRoot.querySelectorAll('slot');
+      }
+
+      /**
+      * Processes any distributed nodes
+      * The last node with the attr 'next' is set to be the next button
+      * @param {array} nodes - the array of nodes to process
+      */
+      _processNodes(nodes){
+        let interactiveNodes = []
+
+        nodes.filter((node) => {return node.nodeType === 1}).forEach((node) => {
+          if(node.hasAttribute('next') || node.hasAttribute('back') || node.hasAttribute('goto')){
+            interactiveNodes.push(node);
+          }
+
+          interactiveNodes = interactiveNodes.concat(Array.from(node.querySelectorAll('[next]')))
+          interactiveNodes = interactiveNodes.concat(Array.from(node.querySelectorAll('[back]')))
+          interactiveNodes = interactiveNodes.concat(Array.from(node.querySelectorAll('[goto]')))
+
+        });
+
+        interactiveNodes.forEach((node) => {
+          Polymer.Gestures.addListener(node, 'tap', e => this._handleTap(e));
+        });
+        this.set('interactiveNodes', interactiveNodes);
+        this._validate();
+      }
+
+      _validate(){
+        this.set('valid', this.validate());
+        this.interactiveNodes.forEach((node) => {
+          if(node.hasAttribute('next')){
+            if(!this.valid){
+              node.setAttribute('disabled', true)
+            }else{
+              node.removeAttribute('disabled')
+            }
+          }
+        });
+        let validEvent = new CustomEvent(this.valid ? 'valid' : 'invalid', {bubbles: true, composed: true});
+        this.dispatchEvent(validEvent);
+        return this.valid;
+      }
+
+      /**
+      * Checks whether the result of the step is valid
+      * Overwrite for custom checks
+      */
+      validate(){
+        return true;
+      }
+
+      _handleTap(e){
+        this._tap(e.currentTarget)
+      }
+
+      _tap(item){
+        if(item.hasAttribute('goto')){
+          this.set('next', item.getAttribute('goto'))
+          return this._next()
+        }
+
+        if(item.hasAttribute('next')){
+          return this._next()
+        }
+
+        if(item.hasAttribute('back')){
+          return this._back()
+        }
+      }
+
+      _next(){
+        if(!this._validate()){return}
+        // console.log('next')
+        let nextEvent = new CustomEvent('next', {bubbles: true, composed: true});
+        this.dispatchEvent(nextEvent);
+      }
+
+      _back(){
+        let backEvent = new CustomEvent('back', {bubbles: true, composed: true});
+        this.dispatchEvent(backEvent);
+      }
+    }
+
+    window.customElements.define(FriendlyWizardStep.is, FriendlyWizardStep);
+  </script>
+</dom-module>

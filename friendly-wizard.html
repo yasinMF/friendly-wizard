@@ -1,0 +1,140 @@
+<!--
+@license
+Copyright (c) 2016 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../../bower_components/iron-selector/iron-selector.html">
+
+<dom-module id="friendly-wizard">
+  <template>
+    <style>
+      :host {
+        display: block;
+        position: relative;
+      }
+
+      #pages{
+        position: absolute;
+        top: 0px;
+        left: 0px;
+        right: 0px;
+        bottom: 0px;
+      }
+
+      :host ::slotted(:not(.iron-selected)) {
+        display: none !important;
+      }
+
+    </style>
+    <slot id="slot"></slot>
+
+  </template>
+
+  <script>
+    class FriendlyWizard extends Polymer.mixinBehaviors([Polymer.IronResizableBehavior, Polymer.IronSelectableBehavior], Polymer.Element) {
+      static get is() { return 'friendly-wizard'; }
+
+      static get properties (){
+        return {
+          selected: {
+            type: String,
+            notify: true,
+            reflectToAttribute: true,
+            value: ''
+          },
+
+          reflectToUrl:{
+            type: Boolean,
+            value: false
+          },
+
+          baseUrl:{
+            type: String,
+            value: ''
+          },
+
+          steps:{
+            type: Array,
+            value: () => {return []}
+          },
+
+          stepNames:{
+            type: Array,
+            value: () => {return []}
+          },
+
+          nextEnabled:{
+            notify: true,
+            type: Boolean,
+            value: false
+          },
+
+          activateEvent: {
+            type: String,
+            value: null
+          }
+        }
+      }
+
+      static get observers (){
+        return [
+          '_selectedPageChanged(selected)'
+        ]
+      }
+
+
+      _selectedPageChanged(selected, old) {
+        this.async(this.notifyResize);
+      }
+
+
+      constructor(){
+        super();
+        this.addEventListener('next', e => this.next(e))
+        this.addEventListener('back', e => this.back(e))
+        this.addEventListener('valid', e => this.validChanged(e))
+        this.addEventListener('invalid', e => this.validChanged(e))
+      }
+
+      validChanged(e){
+        if(!e.target){return}
+        this.nextEnabled = e.target.valid;
+      }
+
+      /**
+      * Navigate to the next step
+      */
+      next(){
+        console.log('next')
+        this.goto(this.selectedItem.next);
+      }
+
+      /**
+      * Navigate to the previous step
+      */
+      back(){
+        this.goto(this.selectedItem.back);
+      }
+
+      goto(step){
+        if(!step){return}
+        if(this.reflectToUrl){
+          window.history.pushState({}, null, `${this.baseUrl}/${step}`);
+          window.dispatchEvent(new CustomEvent('location-changed'));
+          this.dispatchEvent(new CustomEvent('step-changed'));
+        }else{
+          this.set('selectedStep', step);
+        }
+      }
+
+    }
+
+    window.customElements.define(FriendlyWizard.is, FriendlyWizard);
+  </script>
+</dom-module>
